@@ -31,10 +31,10 @@ NTSTATUS kull_m_process_getProcessInformation(PKULL_M_PROCESS_ENUM_CALLBACK call
 	NTSTATUS status;
 	PSYSTEM_PROCESS_INFORMATION buffer = NULL, myInfos;
 
-	status = kull_m_process_NtQuerySystemInformation(SystemProcessInformation, &buffer, 0);
+	status = kull_m_process_NtQuerySystemInformation(SystemProcessInformation, &buffer, 0);  //获取所有进程信息
 	
 	if(NT_SUCCESS(status))
-	{
+	{ //对每个进程调用回调函数
 		for(myInfos = buffer; callBack(myInfos, pvArg) && myInfos->NextEntryOffset ; myInfos = (PSYSTEM_PROCESS_INFORMATION) ((PBYTE) myInfos + myInfos->NextEntryOffset));
 		LocalFree(buffer);
 	}
@@ -43,7 +43,7 @@ NTSTATUS kull_m_process_getProcessInformation(PKULL_M_PROCESS_ENUM_CALLBACK call
 
 BOOL CALLBACK kull_m_process_callback_pidForName(PSYSTEM_PROCESS_INFORMATION pSystemProcessInformation, PVOID pvArg)
 {
-	if(((PKULL_M_PROCESS_PID_FOR_NAME) pvArg)->isFound = RtlEqualUnicodeString(&pSystemProcessInformation->ImageName, ((PKULL_M_PROCESS_PID_FOR_NAME) pvArg)->name, TRUE))
+	if(((PKULL_M_PROCESS_PID_FOR_NAME) pvArg)->isFound = RtlEqualUnicodeString(&pSystemProcessInformation->ImageName, ((PKULL_M_PROCESS_PID_FOR_NAME) pvArg)->name, TRUE))  //匹配
 		*((PKULL_M_PROCESS_PID_FOR_NAME) pvArg)->processId = PtrToUlong(pSystemProcessInformation->UniqueProcessId);
 	return !((PKULL_M_PROCESS_PID_FOR_NAME) pvArg)->isFound;
 }
@@ -54,7 +54,7 @@ BOOL kull_m_process_getProcessIdForName(LPCWSTR name, PDWORD processId)
 	UNICODE_STRING uName;
 	KULL_M_PROCESS_PID_FOR_NAME mySearch = {&uName, processId, FALSE};
 	
-	RtlInitUnicodeString(&uName, name);
+	RtlInitUnicodeString(&uName, name);  //Windows内核字符串风格
 	if(NT_SUCCESS(kull_m_process_getProcessInformation(kull_m_process_callback_pidForName, &mySearch)))
 		status = mySearch.isFound;
 	return status;;
@@ -70,7 +70,7 @@ NTSTATUS kull_m_process_getVeryBasicModuleInformations(PKULL_M_MEMORY_HANDLE mem
 	PEB_F32 Peb32; PEB_LDR_DATA_F32 LdrData32; LDR_DATA_TABLE_ENTRY_F32 LdrEntry32;
 #endif
 	ULONG i;
-	KULL_M_MEMORY_ADDRESS aBuffer = {NULL, &KULL_M_MEMORY_GLOBAL_OWN_HANDLE};
+	KULL_M_MEMORY_ADDRESS aBuffer = {NULL, &KULL_M_MEMORY_GLOBAL_OWN_HANDLE}; //进程相关结构体
 	KULL_M_MEMORY_ADDRESS aProcess= {NULL, memory};
 	PBYTE aLire, fin;
 	PWCHAR moduleNameW;
@@ -83,8 +83,8 @@ NTSTATUS kull_m_process_getVeryBasicModuleInformations(PKULL_M_MEMORY_HANDLE mem
 	moduleInformation.DllBase.hMemory = memory;
 	switch(memory->type)
 	{
-	case KULL_M_MEMORY_TYPE_OWN:
-		if(kull_m_process_peb(memory, &Peb, FALSE))
+	case KULL_M_MEMORY_TYPE_OWN: //已经注入LSASS进程
+		if(kull_m_process_peb(memory, &Peb, FALSE)) //通过标准的PEB结构枚举64位模块
 		{
 			for(pLdrEntry  = (PLDR_DATA_TABLE_ENTRY) ((PBYTE) (Peb.Ldr->InMemoryOrderModulevector.Flink) - FIELD_OFFSET(LDR_DATA_TABLE_ENTRY, InMemoryOrderLinks));
 				(pLdrEntry != (PLDR_DATA_TABLE_ENTRY) ((PBYTE) (Peb.Ldr) + FIELD_OFFSET(PEB_LDR_DATA, InLoadOrderModulevector))) && continueCallback;
@@ -94,12 +94,12 @@ NTSTATUS kull_m_process_getVeryBasicModuleInformations(PKULL_M_MEMORY_HANDLE mem
 					moduleInformation.DllBase.address = pLdrEntry->DllBase;
 					moduleInformation.SizeOfImage = pLdrEntry->SizeOfImage;
 					moduleInformation.NameDontUseOutsideCallback = &pLdrEntry->BaseDllName;
-					kull_m_process_adjustTimeDateStamp(&moduleInformation);
+					kull_m_process_adjustTimeDateStamp(&moduleInformation); //从NT中提取模块的编译时间
 					continueCallback = callBack(&moduleInformation, pvArg);
 				}
 				status = STATUS_SUCCESS;
 		}
-#if defined(_M_X64) || defined(_M_ARM64) // TODO:ARM64
+#if defined(_M_X64) || defined(_M_ARM64) // 继续枚举32位模块
 		moduleInformation.NameDontUseOutsideCallback = &moduleName;
 		if(continueCallback && NT_SUCCESS(status) && kull_m_process_peb(memory, (PPEB) &Peb32, TRUE))
 		{
@@ -123,7 +123,7 @@ NTSTATUS kull_m_process_getVeryBasicModuleInformations(PKULL_M_MEMORY_HANDLE mem
 #endif
 		break;
 
-	case KULL_M_MEMORY_TYPE_PROCESS:
+	case KULL_M_MEMORY_TYPE_PROCESS: //针对进程
 		moduleInformation.NameDontUseOutsideCallback = &moduleName;
 		if(kull_m_process_peb(memory, &Peb, FALSE))
 		{
@@ -162,8 +162,8 @@ NTSTATUS kull_m_process_getVeryBasicModuleInformations(PKULL_M_MEMORY_HANDLE mem
 		if(continueCallback && NT_SUCCESS(status) && kull_m_process_peb(memory, (PPEB) &Peb32, TRUE))
 		{
 			status = STATUS_PARTIAL_COPY;
-			aBuffer.address = &LdrData32; aProcess.address = ULongToPtr(Peb32.Ldr);
-			if(kull_m_memory_copy(&aBuffer, &aProcess, sizeof(LdrData32)))
+			aBuffer.address = &LdrData32; aProcess.address = ULongToPtr(Peb32.Ldr);  //把 32 位/64 位无符号整数安全转换为指针
+			if(kull_m_memory_copy(&aBuffer, &aProcess, sizeof(LdrData32)))  //把对方进程的结构体内容复制过来  实际上需要多次复制
 			{
 				for(
 					aLire  = (PBYTE) ULongToPtr(LdrData32.InMemoryOrderModulevector.Flink) - FIELD_OFFSET(LDR_DATA_TABLE_ENTRY_F32, InMemoryOrderLinks),
@@ -198,7 +198,7 @@ NTSTATUS kull_m_process_getVeryBasicModuleInformations(PKULL_M_MEMORY_HANDLE mem
 #endif
 		break;
 
-	case KULL_M_MEMORY_TYPE_PROCESS_DMP:
+	case KULL_M_MEMORY_TYPE_PROCESS_DMP: //针对转储文件
 		moduleInformation.NameDontUseOutsideCallback = &moduleName;
 		if(pMinidumpModuleList = (PMINIDUMP_MODULE_LIST) kull_m_minidump_stream(memory->pHandleProcessDmp->hMinidump, ModuleListStream, NULL))
 		{
@@ -217,7 +217,7 @@ NTSTATUS kull_m_process_getVeryBasicModuleInformations(PKULL_M_MEMORY_HANDLE mem
 		}
 		break;
 
-	case KULL_M_MEMORY_TYPE_KERNEL:
+	case KULL_M_MEMORY_TYPE_KERNEL: //如果本身是驱动
 		status = kull_m_process_NtQuerySystemInformation(SystemModuleInformation, &modules, 0);
 		if(NT_SUCCESS(status))
 		{
@@ -245,7 +245,7 @@ NTSTATUS kull_m_process_getVeryBasicModuleInformations(PKULL_M_MEMORY_HANDLE mem
 	return status;
 }
 
-void kull_m_process_adjustTimeDateStamp(PKULL_M_PROCESS_VERY_BASIC_MODULE_INFORMATION information)
+void kull_m_process_adjustTimeDateStamp(PKULL_M_PROCESS_VERY_BASIC_MODULE_INFORMATION information) //辅助函数，提取编译时间
 {
 	PIMAGE_NT_HEADERS ntHeaders;
 	if(kull_m_process_ntheaders(&information->DllBase, &ntHeaders))
@@ -660,7 +660,7 @@ NTSTATUS kull_m_process_getImportedEntryInformations(PKULL_M_MEMORY_ADDRESS addr
 	}
 	return TRUE;
 }
-
+//用于从远程进程内存中安全获取 Unicode 字符串的工具函数
 BOOL kull_m_process_getUnicodeString(IN PUNICODE_STRING string, IN PKULL_M_MEMORY_HANDLE source)
 {
 	BOOL status = FALSE;

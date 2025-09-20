@@ -57,7 +57,7 @@ BOOL kull_m_patch(PKULL_M_MEMORY_SEARCH sMemory, PKULL_M_MEMORY_ADDRESS pPattern
 	}
 	return result;
 }
-
+//根据Windows版本匹配密钥特征
 PKULL_M_PATCH_GENERIC kull_m_patch_getGenericFromBuild(PKULL_M_PATCH_GENERIC generics, SIZE_T cbGenerics, DWORD BuildNumber)
 {
 	SIZE_T i;

@@ -7,14 +7,14 @@
 
 KULL_M_MEMORY_HANDLE KULL_M_MEMORY_GLOBAL_OWN_HANDLE = {KULL_M_MEMORY_TYPE_OWN, NULL};
 
-BOOL kull_m_memory_open(IN KULL_M_MEMORY_TYPE Type, IN HANDLE hAny, OUT PKULL_M_MEMORY_HANDLE *hMemory)
+BOOL kull_m_memory_open(IN KULL_M_MEMORY_TYPE Type, IN HANDLE hAny, OUT PKULL_M_MEMORY_HANDLE *hMemory)  //分配下结构体中的指针
 {
 	BOOL status = FALSE;
 
 	*hMemory = (PKULL_M_MEMORY_HANDLE) LocalAlloc(LPTR, sizeof(KULL_M_MEMORY_HANDLE));
 	if(*hMemory)
 	{
-		(*hMemory)->type = Type;
+		(*hMemory)->type = Type;  //类型确定
 		switch (Type)
 		{
 		case KULL_M_MEMORY_TYPE_OWN:
