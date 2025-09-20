@@ -89,7 +89,7 @@ NTSTATUS kuhl_m_sekurlsa_pth(int argc, wchar_t * argv[]);
 NTSTATUS kuhl_m_sekurlsa_process(int argc, wchar_t * argv[]);
 NTSTATUS kuhl_m_sekurlsa_minidump(int argc, wchar_t * argv[]);
 
-typedef struct _KUHL_M_SEKURLSA_ENUM_HELPER {
+typedef struct _KUHL_M_SEKURLSA_ENUM_HELPER {  //适配不同Windows版本内存结构差异的偏移量
 	SIZE_T tailleStruct;
 	ULONG offsetToLuid;
 	ULONG offsetToLogonType;

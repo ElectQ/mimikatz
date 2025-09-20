@@ -44,19 +44,19 @@ int wmain(int argc, wchar_t * argv[])
 	wchar_t input[0xffff];
 #endif
 	mimikatz_begin();
-	for(i = MIMIKATZ_AUTO_COMMAND_START ; (i < argc) && (status != STATUS_PROCESS_IS_TERMINATING) && (status != STATUS_THREAD_IS_TERMINATING) ; i++)
+	for(i = MIMIKATZ_AUTO_COMMAND_START ; (i < argc) && (status != STATUS_PROCESS_IS_TERMINATING) && (status != STATUS_THREAD_IS_TERMINATING) ; i++) //命令行调用 mimikatz.exe 并传入命令时
 	{
 		kprintf(L"\n" MIMIKATZ L"(" MIMIKATZ_AUTO_COMMAND_STRING L") # %s\n", argv[i]);
-		status = mimikatz_dispatchCommand(argv[i]);
+		status = mimikatz_dispatchCommand(argv[i]);  //进入对应模块
 	}
 #if !defined(_POWERKATZ)
-	while ((status != STATUS_PROCESS_IS_TERMINATING) && (status != STATUS_THREAD_IS_TERMINATING))
+	while ((status != STATUS_PROCESS_IS_TERMINATING) && (status != STATUS_THREAD_IS_TERMINATING)) //REPL 模式
 	{
 		kprintf(L"\n" MIMIKATZ L" # "); fflush(stdin);
 		if(fgetws(input, ARRAYSIZE(input), stdin) && (len = wcslen(input)) && (input[0] != L'\n'))
 		{
 			if(input[len - 1] == L'\n')
-				input[len - 1] = L'\0';
+				input[len - 1] = L'\0'; //把用户输入末尾的换行符去掉
 			kprintf_inputline(L"%s\n", input);
 			status = mimikatz_dispatchCommand(input);
 		}
@@ -68,10 +68,10 @@ int wmain(int argc, wchar_t * argv[])
 
 void mimikatz_begin()
 {
-	kull_m_output_init();
+	kull_m_output_init();  //UTF-8支持宽字节输出
 #if !defined(_POWERKATZ)
 	SetConsoleTitle(MIMIKATZ L" " MIMIKATZ_VERSION L" " MIMIKATZ_ARCH L" (oe.eo)");
-	SetConsoleCtrlHandler(HandlerRoutine, TRUE);
+	SetConsoleCtrlHandler(HandlerRoutine, TRUE);  //为控制台应用程序添加或移除自定义的控制信号处理程序
 #endif
 	kprintf(L"\n"
 		L"  .#####.   " MIMIKATZ_FULL L"\n"
@@ -87,7 +87,7 @@ void mimikatz_end(NTSTATUS status)
 {
 	mimikatz_initOrClean(FALSE);
 #if !defined(_POWERKATZ)
-	SetConsoleCtrlHandler(HandlerRoutine, FALSE);
+	SetConsoleCtrlHandler(HandlerRoutine, FALSE);  //为控制台应用程序添加或移除自定义的控制信号处理程序
 #endif
 	kull_m_output_clean();
 #if !defined(_WINDLL)
@@ -103,7 +103,7 @@ BOOL WINAPI HandlerRoutine(DWORD dwCtrlType)
 	return FALSE;
 }
 
-NTSTATUS mimikatz_initOrClean(BOOL Init)
+NTSTATUS mimikatz_initOrClean(BOOL Init)  //初始化或清理环境资源
 {
 	unsigned short indexModule;
 	PKUHL_M_C_FUNC_INIT function;
@@ -114,22 +114,22 @@ NTSTATUS mimikatz_initOrClean(BOOL Init)
 	if(Init)
 	{
 		RtlGetNtVersionNumbers(&MIMIKATZ_NT_MAJOR_VERSION, &MIMIKATZ_NT_MINOR_VERSION, &MIMIKATZ_NT_BUILD_NUMBER);
-		MIMIKATZ_NT_BUILD_NUMBER &= 0x00007fff;
-		offsetToFunc = FIELD_OFFSET(KUHL_M, pInit);
-		hr = CoInitializeEx(NULL, COINIT_MULTITHREADED);
+		MIMIKATZ_NT_BUILD_NUMBER &= 0x00007fff;  //得到build版本
+		offsetToFunc = FIELD_OFFSET(KUHL_M, pInit);  //计算成员距离结构体开始的偏移距离
+		hr = CoInitializeEx(NULL, COINIT_MULTITHREADED); //初始化COM
 		if(FAILED(hr))
 #if defined(_POWERKATZ)
-			if(hr != RPC_E_CHANGED_MODE)
+			if(hr != RPC_E_CHANGED_MODE)  //被多次初始化
 #endif
 				PRINT_ERROR(L"CoInitializeEx: %08x\n", hr);
-		kull_m_asn1_init();
+		kull_m_asn1_init(); //初始化ASN1的模板
 	}
 	else
 		offsetToFunc = FIELD_OFFSET(KUHL_M, pClean);
 
 	for(indexModule = 0; indexModule < ARRAYSIZE(mimikatz_modules); indexModule++)
 	{
-		if(function = *(PKUHL_M_C_FUNC_INIT *) ((ULONG_PTR) (mimikatz_modules[indexModule]) + offsetToFunc))
+		if(function = *(PKUHL_M_C_FUNC_INIT *) ((ULONG_PTR) (mimikatz_modules[indexModule]) + offsetToFunc))  //调用所有模块各自的初始化或者清理函数
 		{
 			fStatus = function();
 			if(!NT_SUCCESS(fStatus))
@@ -155,13 +155,13 @@ NTSTATUS mimikatz_dispatchCommand(wchar_t * input)
 		switch(full[0])
 		{
 		case L'!':
-			status = kuhl_m_kernel_do(full + 1);
+			status = kuhl_m_kernel_do(full + 1);  //内核模块相关功能  +1 去掉前缀符号
 			break;
 		case L'*':
-			status = kuhl_m_rpc_do(full + 1);
+			status = kuhl_m_rpc_do(full + 1);  //RPC执行操作(需保证环境已经配置好)
 			break;
 		default:
-			status = mimikatz_doLocal(full);
+			status = mimikatz_doLocal(full); //一般命令
 		}
 		LocalFree(full);
 	}
@@ -178,7 +178,7 @@ NTSTATUS mimikatz_doLocal(wchar_t * input)
 	
 	if(argv && (argc > 0))
 	{
-		if(match = wcsstr(argv[0], L"::"))
+		if(match = wcsstr(argv[0], L"::"))  //分隔符
 		{
 			if(module = (wchar_t *) LocalAlloc(LPTR, (match - argv[0] + 1) * sizeof(wchar_t)))
 			{
@@ -187,7 +187,7 @@ NTSTATUS mimikatz_doLocal(wchar_t * input)
 				RtlCopyMemory(module, argv[0], (match - argv[0]) * sizeof(wchar_t));
 			}
 		}
-		else command = argv[0];
+		else command = argv[0];  //匹配模块命令执行
 
 		for(indexModule = 0; !moduleFound && (indexModule < ARRAYSIZE(mimikatz_modules)); indexModule++)
 			if(moduleFound = (!module || (_wcsicmp(module, mimikatz_modules[indexModule]->shortName) == 0)))

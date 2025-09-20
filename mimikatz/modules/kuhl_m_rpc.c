@@ -40,7 +40,7 @@ NTSTATUS kuhl_m_c_rpc_clean()
 	return STATUS_SUCCESS;
 }
 
-NTSTATUS kuhl_m_rpc_do(wchar_t * input)
+NTSTATUS kuhl_m_rpc_do(wchar_t * input) //RPC远程执行
 {
 	NTSTATUS status;
 	PBYTE encCommand, encResult = NULL, clearResult;
@@ -48,14 +48,14 @@ NTSTATUS kuhl_m_rpc_do(wchar_t * input)
 
 	if(hBinding && hMimi)
 	{
-		if(kull_m_crypto_dh_simpleEncrypt(clientKey->hSessionKey, input, szInput, (LPVOID *) &encCommand, &szEncCommand))
+		if(kull_m_crypto_dh_simpleEncrypt(clientKey->hSessionKey, input, szInput, (LPVOID *) &encCommand, &szEncCommand))  //远程加密
 		{
-			RpcTryExcept
+			RpcTryExcept  //监控RPC 异常
 			{
 				status = CLI_MimiCommand(hMimi, szEncCommand, encCommand, &szEncResult, &encResult);
 				if(szEncResult && encResult)
 				{
-					if(kull_m_crypto_dh_simpleDecrypt(clientKey->hSessionKey, encResult, szEncResult, (LPVOID *) &clearResult, &szClearResult))
+					if(kull_m_crypto_dh_simpleDecrypt(clientKey->hSessionKey, encResult, szEncResult, (LPVOID *) &clearResult, &szClearResult))  //解密
 					{
 						for(i = 0; (i < (szClearResult / sizeof(wchar_t))) && ((wchar_t *) clearResult)[i]; i++)
 							kprintf(L"%c", ((wchar_t *) clearResult)[i]);

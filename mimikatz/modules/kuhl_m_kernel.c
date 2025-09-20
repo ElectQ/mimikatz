@@ -31,7 +31,7 @@ NTSTATUS kuhl_m_kernel_do(wchar_t * input)
 {
 	NTSTATUS status = STATUS_SUCCESS;
 	int argc;
-	wchar_t ** argv = CommandLineToArgvW(input, &argc);
+	wchar_t ** argv = CommandLineToArgvW(input, &argc);  //CommandLineToArgvW 把命令字符串拆分成 argv/argc 风格的参数数组 去掉空格
 	unsigned short indexCommand;
 	BOOL commandFound = FALSE;
 
@@ -39,10 +39,10 @@ NTSTATUS kuhl_m_kernel_do(wchar_t * input)
 	{
 		for(indexCommand = 0; !commandFound && (indexCommand < ARRAYSIZE(kuhl_k_c_kernel)); indexCommand++)
 		{
-			if(commandFound = _wcsicmp(argv[0], kuhl_k_c_kernel[indexCommand].command) == 0)
+			if(commandFound = _wcsicmp(argv[0], kuhl_k_c_kernel[indexCommand].command) == 0) //匹配模块
 			{
-				if(kuhl_k_c_kernel[indexCommand].pCommand)
-					status = kuhl_k_c_kernel[indexCommand].pCommand(argc - 1, argv + 1);
+				if(kuhl_k_c_kernel[indexCommand].pCommand)  //指针存在
+					status = kuhl_k_c_kernel[indexCommand].pCommand(argc - 1, argv + 1);  //跳转带参执行
 				else
 					kull_m_kernel_mimidrv_simple_output(kuhl_k_c_kernel[indexCommand].ioctlCode, NULL, 0);
 			}

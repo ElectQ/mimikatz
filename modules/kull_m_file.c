@@ -127,7 +127,7 @@ void kull_m_file_cleanFilename(PWCHAR fileName)
 				fileName[i] = L'~';
 }
 
-PWCHAR kull_m_file_fullPath(PCWCHAR fileName)
+PWCHAR kull_m_file_fullPath(PCWCHAR fileName)  //辅助函数将路径中的相关内容展开为真实路径
 {
 	PWCHAR buffer = NULL;
 	DWORD bufferLen;

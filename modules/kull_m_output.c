@@ -104,8 +104,8 @@ void kull_m_output_init()
 	previousStdOut = _setmode(_fileno(stdout), _O_U8TEXT);
 	previousStdErr = _setmode(_fileno(stderr), _O_U8TEXT);
 #endif
-	previousConsoleOutput = GetConsoleOutputCP();
-	SetConsoleOutputCP(CP_UTF8);
+	previousConsoleOutput = GetConsoleOutputCP();  //获取控制台当前的代码页
+	SetConsoleOutputCP(CP_UTF8);  //设置控制台输出的代码页
 #endif
 }
 

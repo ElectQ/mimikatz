@@ -9,10 +9,10 @@
 typedef NTSTATUS (* PKUHL_M_C_FUNC) (int argc, wchar_t * args[]);
 typedef NTSTATUS (* PKUHL_M_C_FUNC_INIT) ();
 
-typedef struct _KUHL_M_C {
-	const PKUHL_M_C_FUNC pCommand;
-	const wchar_t * command;
-	const wchar_t * description;
+typedef struct _KUHL_M_C {  //执行的结构体
+	const PKUHL_M_C_FUNC pCommand;  //函数执行方法的指针
+	const wchar_t * command;  //执行命令 来自用户输入
+	const wchar_t * description; //形容词
 } KUHL_M_C, *PKUHL_M_C;
 
 typedef struct _KUHL_M {
